@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Test Ideológico de Olson</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start;
+      min-height: 100vh;
+      background: #f5f5f5;
+    }
+    header {
+      width: 100%;
+      display: flex; justify-content: space-between;
+      padding: 10px 20px; background: #333; color: white;
+    }
+    header button {
+      background: #555; border: none; padding: 8px 12px;
+      color: white; cursor: pointer; border-radius: 4px;
+    }
+    main {
+      flex: 1; width: 100%; max-width: 800px;
+      padding: 20px; box-sizing: border-box;
+    }
+    .hidden { display: none; }
+    button, .scale-btn {
+      margin: 8px; padding: 12px 20px;
+      border: none; border-radius: 4px;
+      background: #007bff; color: white;
+      cursor: pointer; font-size: 16px;
+    }
+    .scale-btn { width: 48px; }
+    #scale-container { display: flex; justify-content: center; }
+    #question { margin: 20px 0; font-size: 1.1em; }
+    #result-info { text-align: center; }
+    canvas { max-width: 100%; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div id="lang-label">ES</div>
+    <button id="langBtn">EN</button>
+  </header>
+
+  <main>
+    <!-- Menú inicial -->
+    <section id="menu">
+      <h1 id="title">Test ideológico de Olson</h1>
+      <button id="startBtn">Iniciar</button>
+    </section>
+
+    <!-- Pantalla de preguntas -->
+    <section id="quiz" class="hidden">
+      <div id="progress"></div>
+      <div id="question"></div>
+      <div id="scale-container">
+        <button class="scale-btn" data-value="1">1</button>
+        <button class="scale-btn" data-value="2">2</button>
+        <button class="scale-btn" data-value="3">3</button>
+        <button class="scale-btn" data-value="4">4</button>
+        <button class="scale-btn" data-value="5">5</button>
+      </div>
+    </section>
+
+    <!-- Resultados -->
+    <section id="result" class="hidden">
+      <div id="result-info">
+        <div id="ideol-emoji" style="font-size: 3em;"></div>
+        <h2 id="ideol-name"></h2>
+        <p id="ideol-desc"></p>
+      </div>
+      <canvas id="resultChart" width="400" height="400"></canvas>
+      <button id="restartBtn">Volver</button>
+    </section>
+  </main>
+
+  <script>
+  // ─── Datos y configuración ────────────────────────────────
+  const economicQuestions = {
+    en: [
+      "The state should control the strategic sectors of the economy.",
+      "Private property is essential for individual freedom.",
+      "Taxes should redistribute wealth.",
+      "Private companies are more efficient than state enterprises.",
+      "The market must be regulated to prevent abuses.",
+      "Monopolies should be nationalized.",
+      "Free competition generates progress.",
+      "The state must guarantee employment for all.",
+      "Pensions should be public and universal.",
+      "Prices must be set by supply and demand."
+    ],
+    es: [
+      "El Estado debe controlar los sectores estratégicos de la economía.",
+      "La propiedad privada es esencial para la libertad individual.",
+      "Los impuestos deben redistribuir la riqueza.",
+      "Las empresas privadas son más eficientes que las estatales.",
+      "El mercado debe regularse para evitar abusos.",
+      "Los monopolios deben ser nacionalizados.",
+      "La competencia libre genera progreso.",
+      "El Estado debe garantizar empleo para todos.",
+      "Las pensiones deben ser públicas y universales.",
+      "Los precios deben ser determinados por la oferta y la demanda."
+    ]
+  };
+  const culturalQuestions = {
+    en: [
+      "A strong authority is required for social order.",
+      "Everyone should be free to live as they wish without interference.",
+      "Traditions must be respected even if they limit freedom.",
+      "Freedom of expression must be protected even if it offends.",
+      "The state should impose moral values.",
+      "Laws must adapt to social changes.",
+      "Civil disobedience is legitimate against unjust laws.",
+      "Education should form obedient citizens.",
+      "Communities should self-manage without hierarchies.",
+      "Security justifies limiting certain liberties."
+    ],
+    es: [
+      "El orden social requiere una autoridad fuerte.",
+      "Cada persona debe ser libre de vivir como quiera, sin interferencia.",
+      "Las tradiciones deben respetarse incluso si limitan la libertad.",
+      "La libertad de expresión debe protegerse incluso si ofende.",
+      "El Estado debe imponer valores morales.",
+      "Las leyes deben adaptarse a los cambios sociales.",
+      "La desobediencia civil es legítima frente a leyes injustas.",
+      "La educación debe formar ciudadanos obedientes.",
+      "Las comunidades deben autogestionarse sin jerarquías.",
+      "La seguridad justifica limitar ciertas libertades."
+    ]
+  };
+  const economicDir = [false,true,false,true,false,false,true,false,false,true];
+  const culturalDir = [false,true,false,true,false,true,true,false,true,false];
+  const mapping    = [2,1,0,-1,-2];
+  const ideologies = [
+    {en:"Stalinism",        es:"Estalinismo",        emoji:"🚩", x:[-20,-15], y:[-20,-15],
+     descEn:"Communist totalitarianism with strong state centralism and political repression.",
+     descEs:"Totalitarismo comunista con fuerte centralismo estatal y represión política."},
+    {en:"Maoism",           es:"Maoísmo",            emoji:"🐉", x:[-18,-12], y:[-18,-12],
+     descEn:"Communist revolutionary ideology emphasizing the peasantry and leader worship.",
+     descEs:"Comunismo revolucionario con énfasis en el campesinado y culto al líder."},
+    {en:"Marxism-Leninism", es:"Marxismo-Leninismo", emoji:"⚒️", x:[-15,-10], y:[-15,-10],
+     descEn:"Authoritarian socialism based on a single party and planned economy.",
+     descEs:"Socialismo autoritario basado en partido único y economía planificada."},
+    {en:"Trotskyism",       es:"Trotskismo",         emoji:"📯", x:[-15,-10], y:[-5,5],
+     descEn:"Democratic socialism with emphasis on workers' democracy.",
+     descEs:"Socialismo democrático con énfasis en la democracia obrera."},
+    {en:"Fascism",          es:"Fascismo",           emoji:"🦅", x:[10,15],   y:[-20,-15],
+     descEn:"Authoritarian nationalism and hierarchical corporatism.",
+     descEs:"Nacionalismo autoritario y corporativismo jerárquico."},
+    {en:"Technocracy",      es:"Tecnocracia",        emoji:"📡", x:[10,15],   y:[-15,-10],
+     descEn:"Governance by experts and centralized corporate structures.",
+     descEs:"Gobierno de expertos y estructuras corporativas centralizadas."},
+    {en:"Absolute Monarchy",es:"Monarquía Absoluta", emoji:"👑", x:[5,10],    y:[-20,-15],
+     descEn:"Concentrated power in a hereditary figure without democratic checks.",
+     descEs:"Poder concentrado en una figura hereditaria sin contrapesos democráticos."},
+    {en:"Conservatism",     es:"Conservadurismo",    emoji:"🏛️", x:[5,10],    y:[-15,-10],
+     descEn:"Defense of traditions, moral authority, and moderate free market.",
+     descEs:"Defensa de tradiciones, autoridad moral y libre mercado moderado."},
+    {en:"Mutualism",        es:"Mutualismo",         emoji:"📫", x:[-15,-10], y:[10,15],
+     descEn:"Cooperative economy without state, based on fair exchange.",
+     descEs:"Economía cooperativa sin Estado, basada en el intercambio justo."},
+    {en:"Syndicalism",      es:"Sindicalismo",       emoji:"🛑", x:[-15,-10], y:[5,10],
+     descEn:"Worker control of production through trade unions.",
+     descEs:"Control obrero de la producción mediante sindicatos."},
+    {en:"Anarcho-communism",es:"Anarco-comunismo",   emoji:"🔨", x:[-20,-15], y:[15,20],
+     descEn:"Abolition of the state and private property, with egalitarian communities.",
+     descEs:"Abolición del Estado y propiedad privada, con comunidades igualitarias."},
+    {en:"Egoism (Stirner)", es:"Egoísmo (Stirner)",  emoji:"👓", x:[-10,-5],  y:[15,20],
+     descEn:"Radical individualism rejecting all authority and collective abstractions.",
+     descEs:"Individualismo radical que rechaza toda autoridad y abstracción colectiva."},
+    {en:"Neoliberalism",    es:"Neoliberalismo",     emoji:"🌍", x:[10,15],   y:[5,10],
+     descEn:"Globalized capitalism with minimal state intervention.",
+     descEs:"Capitalismo globalizado con mínima intervención estatal."},
+    {en:"Classical Liberalism", es:"Liberalismo clásico", emoji:"🎩", x:[5,10], y:[10,15],
+     descEn:"Individual liberties, private property, and limited government.",
+     descEs:"Libertades individuales, propiedad privada y gobierno limitado."},
+    {en:"Objectivism",      es:"Objetivismo",        emoji:"🔍", x:[15,20],  y:[10,15],
+     descEn:"Rationalist philosophy exalting individual ego and pure capitalism.",
+     descEs:"Filosofía racionalista que exalta el ego individual y el capitalismo puro."},
+    {en:"Minarchism",       es:"Minarquismo",        emoji:"🗽", x:[15,20],  y:[15,20],
+     descEn:"Abolition of the state except minimal functions, with absolute free market.",
+     descEs:"Abolición del Estado salvo funciones mínimas, con mercado libre absoluto."}
+  ];
+
+  let lang = 'es';
+  let current = 0, scoreX = 0, scoreY = 0;
+  const TOTAL_ECON = economicQuestions.en.length;
+  const TOTAL_CULT = culturalQuestions.en.length;
+  const directions = economicDir.concat(culturalDir);
+
+  // ─── Elementos del DOM ───────────────────────────────────────
+  const menu      = document.getElementById('menu');
+  const quiz      = document.getElementById('quiz');
+  const result    = document.getElementById('result');
+  const startBtn  = document.getElementById('startBtn');
+  const restartBtn= document.getElementById('restartBtn');
+  const langBtn   = document.getElementById('langBtn');
+  const langLbl   = document.getElementById('lang-label');
+  const titleEl   = document.getElementById('title');
+  const progEl    = document.getElementById('progress');
+  const quesEl    = document.getElementById('question');
+  const scaleBtns = document.querySelectorAll('.scale-btn');
+  const emoEl     = document.getElementById('ideol-emoji');
+  const nameEl    = document.getElementById('ideol-name');
+  const descEl    = document.getElementById('ideol-desc');
+  let chart;  
+
+  // ─── Funciones ──────────────────────────────────────────────
+  function t(key) {
+    const texts = {
+      menuTitle:   {es:"Test ideológico de Olson", en:"Olson Ideological Test"},
+      start:       {es:"Iniciar", en:"Start"},
+      restart:     {es:"Volver", en:"Return"},
+      langBtn:     {es:"EN", en:"ES"},
+      progress:    {es:"Pregunta", en:"Question"},
+      axisX:       {es:"Izquierda – Derecha", en:"Left – Right"},
+      axisY:       {es:"Libertarismo – Autoritarismo", en:"Libertarianism – Authoritarianism"}
+    };
+    return texts[key][lang];
+  }
+
+  function showSection(sec) {
+    menu.classList.add('hidden');
+    quiz.classList.add('hidden');
+    result.classList.add('hidden');
+    sec.classList.remove('hidden');
+  }
+
+  function updateLang() {
+    lang = lang === 'es' ? 'en' : 'es';
+    langBtn.textContent = t('langBtn');
+    langLbl.textContent = lang.toUpperCase();
+    titleEl.textContent = t('menuTitle');
+    startBtn.textContent = t('start');
+    restartBtn.textContent = t('restart');
+    renderQuestion();
+  }
+
+  function startTest() {
+    current = scoreX = scoreY = 0;
+    showSection(quiz);
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    if (!quiz.classList.contains('hidden')) {
+      const questions = economicQuestions[lang].concat(culturalQuestions[lang]);
+      progEl.textContent = `${t('progress')} ${current+1}/${questions.length}`;
+      quesEl.textContent = questions[current];
+    }
+  }
+
+  function pickIdeology(x,y) {
+    for (const ide of ideologies) {
+      if (x>=ide.x[0] && x<=ide.x[1] && y>=ide.y[0] && y<=ide.y[1]) {
+        return {
+          emoji: ide.emoji,
+          name: lang==='es'? ide.es: ide.en,
+          desc: lang==='es'? ide.descEs: ide.descEn
+        };
+      }
+    }
+    return { emoji:"❓", name:lang==='es'?"Indefinido":"Undefined",
+             desc:lang==='es'?"No se encontró una ideología exacta.":"No exact ideology found." };
+  }
+
+  function showResult() {
+    const point = { x: scoreX, y: scoreY };
+    const picked = pickIdeology(point.x, point.y);
+    emoEl.textContent  = picked.emoji;
+    nameEl.textContent = picked.name;
+    descEl.textContent = picked.desc;
+
+    // Gráfico Scatter
+    const ctx = document.getElementById('resultChart').getContext('2d');
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'scatter',
+      data: { datasets: [{
+        label: '',
+        data: [point],
+        pointBackgroundColor: '#d33',
+        pointRadius: 8
+      }]},
+      options: {
+        scales: {
+          x: {
+            min: -20, max: 20,
+            title: { display: true, text: t('axisX') }
+          },
+          y: {
+            min: -20, max: 20,
+            title: { display: true, text: t('axisY') }
+          }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    showSection(result);
+  }
+
+  function answer(value) {
+    const valDir = directions[current];
+    const delta  = (valDir ? mapping[value-1] : -mapping[value-1]);
+    if (current < TOTAL_ECON) scoreX += delta;
+    else                  scoreY += delta;
+    current++;
+    const total = TOTAL_ECON + TOTAL_CULT;
+    if (current < total) {
+      renderQuestion();
+    } else {
+      showResult();
+    }
+  }
+
+  // ─── Eventos ───────────────────────────────────────────────
+  langBtn.addEventListener('click', updateLang);
+  startBtn.addEventListener('click', startTest);
+  restartBtn.addEventListener('click', startTest);
+
+  scaleBtns.forEach(btn => {
+    btn.addEventListener('click', () => answer(+btn.dataset.value));
+  });
+
+  // Inicial
+  updateLang();
+  </script>
+</body>
+</html>
